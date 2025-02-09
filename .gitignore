@@ -1,0 +1,85 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Project-specific
+temp_audio/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.wma
+*.aac
+*.flac
+*.aiff
+*.ape
+*.wv
+
+# Model files
+*.pt
+*.pth
+cached_models/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Test files
+tests/__pycache__/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Documentation
+docs/_build/
+site/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development config
+config.local.yaml
