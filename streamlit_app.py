@@ -270,7 +270,7 @@ def set_custom_style():
     """, unsafe_allow_html=True)
 
 # Add logo path
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "asset", "logo-rag-lu-870x435.png")
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo-rag-lu-870x435.png")
 
 def estimate_number_of_speakers(audio_path):
     """Automatically estimate the optimal number of speakers"""

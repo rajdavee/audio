@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  transcription-app:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./assets:/app/assets:ro
+      - cache-data:/app/.cache
+    environment:
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - XDG_CACHE_HOME=/app/.cache
+      - PYTHONPATH=/app
+    user: appuser
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  cache-data:

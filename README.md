@@ -55,3 +55,54 @@ streamlit run streamlit_app.py
 - Multiple audio format support
 - Speaker diarization
 - Downloadable transcript and JSON report
+
+## Docker Instructions
+
+### Build and Run with Docker
+
+1. Build the Docker image:
+
+```bash
+docker build -t audio-transcription-app .
+```
+
+2. Run the Docker container:
+
+```bash
+docker run -d \
+  --name audio-transcription-app \
+  -p 8501:8501 \
+  -v $(pwd)/assets:/app/assets:ro \
+  -v cache-data:/app/.cache \
+  audio-transcription-app
+```
+
+### Using Docker Compose
+
+1. Build and start the application with Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+2. Access the application in your browser:
+
+```bash
+http://localhost:8501
+```
+
+### Docker Volumes
+
+- `cache-data`: Used to persist Whisper model cache between container restarts.
+
+### Health Check
+
+The Docker container includes a health check to ensure the application is running correctly. It checks the health endpoint at `/app/.cache` every 30 seconds.
+
+```bash
+docker inspect audio-transcription-app | grep -A 10 "Health"
+```
+
+```
+
+```
