@@ -7,3 +7,7 @@ requests==2.31.0
 openai-whisper==20231117
 torch==2.1.1
 ffmpeg-python==0.2.0
+moviepy==1.0.3
+iso639-lang>=2.1.0
+langdetect>=1.0.9
+

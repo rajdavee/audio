@@ -12,6 +12,8 @@ import os.path
 from pathlib import Path
 import base64
 from sklearn.metrics import silhouette_score
+import uuid
+import shutil
 
 # Set page config
 st.set_page_config(page_title="Audio Transcription App", layout="wide")
@@ -321,10 +323,20 @@ def app_header():
     except Exception as e:
         st.error(f"Error loading logo: {str(e)}")
 
+from chat_interface import render_chat_interface
+
 def main():
     set_custom_style()
     app_header()
     
+    # Initialize session state for transcript and structured report
+    if 'transcript' not in st.session_state:
+        st.session_state.transcript = None
+    if 'structured_report' not in st.session_state:
+        st.session_state.structured_report = None
+    if 'transcription_complete' not in st.session_state:
+        st.session_state.transcription_complete = False
+
     with st.sidebar:
         st.markdown("### Model Settings")
         model_size = st.selectbox(
@@ -350,94 +362,137 @@ def main():
     with st.spinner(f"Loading Whisper {model_size} model..."):
         model = load_whisper_model(model_size)
     
-    # File uploader
-    uploaded_file = st.file_uploader("Upload an audio file", type=SUPPORTED_AUDIO_FORMATS)
-    
-    if uploaded_file is not None:
-        temp_dir = os.path.join(os.getcwd(), "temp_audio")
-        os.makedirs(temp_dir, exist_ok=True)
+    # Only show file uploader if transcription is not complete
+    if not st.session_state.transcription_complete:
+        uploaded_file = st.file_uploader("Upload an audio file", type=SUPPORTED_AUDIO_FORMATS)
         
-        # Save and convert file
-        original_path = os.path.join(temp_dir, f"original.{uploaded_file.name.split('.')[-1]}")
-        mp3_path = os.path.join(temp_dir, "audio.mp3")
-        
-        with open(original_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        # Convert to MP3 if needed
-        if original_path.lower().endswith('.mp3'):
-            os.rename(original_path, mp3_path)
-            conversion_success = True
-        else:
-            conversion_success = convert_to_mp3(original_path, mp3_path)
-            os.remove(original_path)
-        
-        if conversion_success:
-            st.success("File uploaded and converted successfully!")
+        if uploaded_file is not None:
+            # Create unique session ID for this upload
+            if 'session_id' not in st.session_state:
+                st.session_state.session_id = str(uuid.uuid4())
             
-            if st.button("Start Transcription"):
-                try:
-                    with st.spinner("Transcribing audio..."):
-                        transcription_json = transcribe_audio_with_chunking(mp3_path, model, chunk_duration=60)
+            # Create temp directory with session ID
+            temp_dir = os.path.join(os.getcwd(), "temp_audio", st.session_state.session_id)
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            try:
+                # Clean up any existing files
+                for file in os.listdir(temp_dir):
+                    os.remove(os.path.join(temp_dir, file))
+                
+                # Save and convert file
+                original_path = os.path.join(temp_dir, f"original.{uploaded_file.name.split('.')[-1]}")
+                mp3_path = os.path.join(temp_dir, "audio.mp3")
+                
+                with open(original_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                # Convert to MP3 if needed
+                if original_path.lower().endswith('.mp3'):
+                    shutil.copy2(original_path, mp3_path)  # Use copy instead of rename
+                    conversion_success = True
+                else:
+                    conversion_success = convert_to_mp3(original_path, mp3_path)
+                
+                if os.path.exists(original_path) and original_path != mp3_path:
+                    os.remove(original_path)
+                
+                if conversion_success:
+                    st.success("File uploaded and converted successfully!")
                     
-                    if transcription_json:
-                        with st.spinner("Detecting number of speakers..."):
-                            if auto_detect:
-                                n_speakers = estimate_number_of_speakers(mp3_path)
-                                st.info(f"Detected {n_speakers} speakers in the audio")
+                    if st.button("Start Transcription"):
+                        try:
+                            with st.spinner("Transcribing audio..."):
+                                transcription_json = transcribe_audio_with_chunking(mp3_path, model, chunk_duration=60)
                             
-                        with st.spinner("Running speaker diarization..."):
-                            try:
-                                diarization_segments = get_diarization_librosa(mp3_path, n_clusters=n_speakers, hop_length=512)
-                            except Exception as e:
-                                st.error(f"Speaker diarization failed: {e}")
-                                diarization_segments = None
+                            if transcription_json:
+                                with st.spinner("Detecting number of speakers..."):
+                                    if auto_detect:
+                                        n_speakers = estimate_number_of_speakers(mp3_path)
+                                        st.info(f"Detected {n_speakers} speakers in the audio")
+                                    
+                                with st.spinner("Running speaker diarization..."):
+                                    try:
+                                        diarization_segments = get_diarization_librosa(mp3_path, n_clusters=n_speakers, hop_length=512)
+                                    except Exception as e:
+                                        st.error(f"Speaker diarization failed: {e}")
+                                        diarization_segments = None
+                                
+                                if diarization_segments:
+                                    structured_report = build_structured_report(transcription_json, diarization_segments)
+                                    final_transcript = report_to_plain_text(structured_report)
+                                    
+                                    # Store in session state
+                                    st.session_state.transcript = final_transcript
+                                    st.session_state.structured_report = structured_report
+                                    st.session_state.transcription_complete = True
+                                    
+                                    # Rerun to refresh the page with new state
+                                    st.experimental_rerun()
+                                    
+                        except Exception as e:
+                            st.error(f"An error occurred: {str(e)}")
                         
-                        if diarization_segments:
-                            structured_report = build_structured_report(transcription_json, diarization_segments)
-                            final_transcript = report_to_plain_text(structured_report)
-                        else:
-                            final_transcript = (
-                                "Speaker diarization was not performed. Transcription:\n" +
-                                transcription_json.get("text", "")
-                            )
-                            structured_report = None
-                        
-                        st.subheader("Transcript:")
-                        st.text_area("Full Transcript", final_transcript, height=300)
-                        
-                        # Download buttons
-                        transcript_bytes = final_transcript.encode()
-                        st.download_button(
-                            label="Download Transcript",
-                            data=transcript_bytes,
-                            file_name="transcript.txt",
-                            mime="text/plain"
-                        )
-                        
-                        if structured_report:
-                            json_str = json.dumps(structured_report, indent=4)
-                            st.download_button(
-                                label="Download Structured Report",
-                                data=json_str,
-                                file_name="report.json",
-                                mime="application/json"
-                            )
-                    else:
-                        st.error("Transcription failed.")
-                        
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-                finally:
-                    # Cleanup
-                    if os.path.exists(mp3_path):
-                        os.remove(mp3_path)
-                    try:
-                        os.rmdir(temp_dir)
-                    except:
-                        pass
-        else:
-            st.error("Failed to process the audio file. Please try another file.")
+            except Exception as e:
+                st.error(f"Error processing file: {str(e)}")
+                # Cleanup on error
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+                return
+            
+            finally:
+                # Cleanup temp files after processing
+                if 'transcription_complete' in st.session_state and st.session_state.transcription_complete:
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                    if 'session_id' in st.session_state:
+                        del st.session_state.session_id
+    
+    # Show results and chat interface if transcription is complete
+    if st.session_state.transcription_complete:
+        # Add a button to start over
+        if st.sidebar.button("Start New Transcription"):
+            st.session_state.transcript = None
+            st.session_state.structured_report = None
+            st.session_state.transcription_complete = False
+            # Clear chat history
+            if 'messages' in st.session_state:
+                del st.session_state.messages
+            st.experimental_rerun()
+            
+        st.subheader("Transcript:")
+        st.text_area("Full Transcript", st.session_state.transcript, height=300)
+        
+        # Download buttons
+        transcript_bytes = st.session_state.transcript.encode()
+        st.download_button(
+            label="Download Transcript",
+            data=transcript_bytes,
+            file_name="transcript.txt",
+            mime="text/plain"
+        )
+        
+        if st.session_state.structured_report:
+            json_str = json.dumps(st.session_state.structured_report, indent=4)
+            st.download_button(
+                label="Download Structured Report",
+                data=json_str,
+                file_name="report.json",
+                mime="application/json"
+            )
+        
+        # Add chat interface
+        st.markdown("---")
+        render_chat_interface(st.session_state.transcript)
+
+def cleanup_temp_files():
+    """Clean up all temporary files when the app exits"""
+    temp_base_dir = os.path.join(os.getcwd(), "temp_audio")
+    if os.path.exists(temp_base_dir):
+        shutil.rmtree(temp_base_dir)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        cleanup_temp_files()

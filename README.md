@@ -103,6 +103,64 @@ The Docker container includes a health check to ensure the application is runnin
 docker inspect audio-transcription-app | grep -A 10 "Health"
 ```
 
+# Audio Transcription App Deployment Guide
+
+## Deploying to Infomaniak
+
+### Prerequisites
+- An Infomaniak account with Container App service
+- Docker installed on your local machine
+- Git (optional)
+
+### Deployment Steps
+
+1. **Login to Infomaniak Registry**
+```bash
+docker login registry.infomaniak.com
 ```
 
+2. **Build the Docker Image**
+```bash
+docker build -t registry.infomaniak.com/[your-namespace]/audio-transcription:latest .
 ```
+
+3. **Push the Image**
+```bash
+docker push registry.infomaniak.com/[your-namespace]/audio-transcription:latest
+```
+
+4. **Deploy on Infomaniak**
+- Go to https://manager.infomaniak.com/
+- Navigate to "Container Apps"
+- Click "Create a new app"
+- Select "Custom Docker image"
+- Enter your image URL: `registry.infomaniak.com/[your-namespace]/audio-transcription:latest`
+- Configure the following settings:
+  - Port: 8501
+  - Environment Variables:
+    - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+    - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    - XDG_CACHE_HOME=/app/.cache
+    - PYTHONPATH=/app
+
+### Environment Configuration
+The app requires the following environment variables:
+- `STREAMLIT_SERVER_MAX_UPLOAD_SIZE`: Maximum upload size in MB
+- `STREAMLIT_SERVER_ADDRESS`: Server address (0.0.0.0)
+- `XDG_CACHE_HOME`: Cache directory for Whisper models
+- `PYTHONPATH`: Python path
+
+### Health Check
+The application includes a health check endpoint at:
+`http://[your-app-url]/_stcore/health`
+
+### Troubleshooting
+1. If the app fails to start, check the logs in Infomaniak dashboard
+2. Ensure all environment variables are properly set
+3. Verify that the port 8501 is correctly exposed
+4. Check if the image was pushed successfully to the registry
+
+### Support
+For any issues:
+- Check Infomaniak's [container documentation](https://www.infomaniak.com/en/support/faq/2438/container-app-prerequisites-and-limitations)
+- Review application logs in the Infomaniak dashboard
